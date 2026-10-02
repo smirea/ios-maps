@@ -1,5 +1,9 @@
 .build
 .swiftpm
 DerivedData
+*.xcresult
+xcuserdata/
+.env
+.env.*
 
 .DS_Store
