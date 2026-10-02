@@ -6,6 +6,16 @@ The bottom search sheet supports free-text search and nearby categories. Search 
 
 ## Run on Mac or simulator
 
+For one-command simulator testing:
+
+```sh
+./scripts/open
+```
+
+This starts or reuses the local search bridge, builds the app, and opens it on a booted iPhone simulator (or an available iPhone if none is booted). It supports Simulator and Xcode 27's Device Hub. To choose a device, use `./scripts/open "iPhone 17 Pro"` or pass its UDID. Build and bridge logs are in `DerivedData`; the bridge keeps running after the script finishes.
+
+For a manual launch or Mac testing:
+
 Start the bridge from this repository:
 
 ```sh

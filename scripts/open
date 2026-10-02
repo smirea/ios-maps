@@ -1,0 +1,91 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_dir=$(cd "$(dirname "$0")/.." && pwd)
+cd "$repo_dir"
+if [ "$#" -gt 1 ]; then
+    echo 'Usage: ./scripts/open [iPhone simulator name or UDID]' >&2
+    exit 1
+fi
+
+developer_dir=${DEVELOPER_DIR:-$(xcode-select -p)}
+simulator_app="$developer_dir/Applications/Simulator.app"
+device_hub="$developer_dir/../Applications/DeviceHub.app"
+if [ ! -d "$simulator_app" ] && [ ! -d "$device_hub" ]; then
+    echo 'Install Xcode and select it with xcode-select before running this script.' >&2
+    exit 1
+fi
+
+device_id=$(xcrun simctl list devices available --json | python3 -c '
+import json, sys
+requested = sys.argv[1]
+devices = [device for runtime, group in json.load(sys.stdin)["devices"].items()
+           if ".iOS-" in runtime and int(runtime.split(".iOS-")[1].split("-")[0]) >= 17
+           for device in group if device["name"].startswith("iPhone")]
+matches = [device for device in devices if requested in (device["name"], device["udid"])] if requested else devices
+if not matches:
+    sys.exit("No matching iPhone simulator available. Install an iOS runtime in Xcode.")
+device = next((device for device in matches if device["state"] == "Booted"), matches[0])
+print(device["udid"])
+' "${1:-}")
+
+mkdir -p DerivedData
+health_args=(--silent --max-time 2)
+if [ -n "${MAPS_BRIDGE_TOKEN:-}" ]; then
+    health_args+=(--header "Authorization: Bearer $MAPS_BRIDGE_TOKEN")
+fi
+bridge_ready() {
+    local response
+    response=$(curl "${health_args[@]}" http://127.0.0.1:8787/health) || return 1
+    if [[ "$response" != *'"provider":"google-maps-script"'* ]]; then
+        echo 'Port 8787 is responding but is not an accessible Private Maps bridge. Check MAPS_BRIDGE_TOKEN or the service on that port.' >&2
+        exit 1
+    fi
+}
+
+if bridge_ready; then
+    echo 'Using the running search bridge.'
+else
+    echo 'Starting the search bridge…'
+    bridge_pid=$(python3 -c '
+import subprocess, sys
+with open(sys.argv[2], "w") as log:
+    process = subprocess.Popen([sys.argv[1]], stdin=subprocess.DEVNULL,
+                               stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+print(process.pid)
+' "$repo_dir/Bridge/run.sh" "$repo_dir/DerivedData/bridge.log")
+    ready=false
+    for attempt in {1..30}; do
+        if bridge_ready; then
+            ready=true
+            break
+        fi
+        if ! kill -0 "$bridge_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.5
+    done
+    if [ "$ready" != true ]; then
+        echo "Could not start the bridge. See $repo_dir/DerivedData/bridge.log" >&2
+        exit 1
+    fi
+fi
+
+echo "Building Private Maps for ${device_id}…"
+if ! xcodebuild -quiet -project PrivateMaps.xcodeproj -scheme PrivateMaps \
+    -configuration Debug -sdk iphonesimulator \
+    -destination "platform=iOS Simulator,id=$device_id" \
+    -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build >DerivedData/simulator-build.log 2>&1; then
+    cat DerivedData/simulator-build.log >&2
+    exit 1
+fi
+
+xcrun simctl bootstatus "$device_id" -b
+if [ -d "$simulator_app" ]; then
+    open -a "$simulator_app" --args -CurrentDeviceUDID "$device_id"
+else
+    open -a "$device_hub" "devices://device/open?id=$device_id"
+fi
+xcrun simctl install "$device_id" DerivedData/Build/Products/Debug-iphonesimulator/PrivateMaps.app
+xcrun simctl launch --terminate-running-process "$device_id" com.stefan.private-maps
+echo 'Private Maps is open. The search bridge stays running in the background.'
