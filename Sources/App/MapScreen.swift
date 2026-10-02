@@ -11,6 +11,7 @@ struct MapScreen: View {
     @State private var location = LocationManager()
     @State private var position: MapCameraPosition = .userLocation(fallback: .region(fallback))
     @State private var visibleRegion = fallback
+    @State private var hasFocusedLocation = false
     @State private var satellite = false
     @State private var panelPresented = false
     @State private var detent: PresentationDetent = .height(180)
@@ -46,6 +47,16 @@ struct MapScreen: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { location.start() } else { location.stop() }
+        }
+        .onChange(of: location.coordinate != nil, initial: true) { _, _ in
+            guard !hasFocusedLocation, let coordinate = location.coordinate else { return }
+            hasFocusedLocation = true
+            let region = MKCoordinateRegion(
+                center: coordinate,
+                span: .init(latitudeDelta: 0.015, longitudeDelta: 0.015)
+            )
+            visibleRegion = region
+            withAnimation(.easeInOut(duration: 0.5)) { position = .region(region) }
         }
         .onChange(of: model.searchRevision) { _, _ in fitResults() }
     }
