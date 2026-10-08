@@ -30,7 +30,31 @@ Open `PrivateMaps.xcodeproj`, select the **PrivateMaps** scheme, and run on an i
 
 ## Run on your iPhone
 
-Select your signing team for the PrivateMaps target in Xcode, then run on your connected iPhone. Your Mac and phone need to be on the same network.
+You can install development builds directly, without TestFlight. One-time setup:
+
+1. Open `PrivateMaps.xcodeproj` in Xcode. Add your Apple account in **Xcode → Settings → Accounts** and select your team under **PrivateMaps → Signing & Capabilities**, with automatic signing enabled.
+2. Connect your iPhone by USB, unlock it, and trust the Mac. Pair it in Xcode's device manager (**Devices and Simulators**, or **Device Hub** in Xcode 27).
+3. Enable **Settings → Privacy & Security → Developer Mode** on the iPhone and complete its restart/confirmation. Run the **PrivateMaps** scheme on the phone once to complete signing and any device preparation. If iOS asks you to trust your developer profile, do so in **Settings → General → VPN & Device Management**.
+4. After pairing, you can run wirelessly while the phone and Mac are on the same network; enable **Connect via network** if your Xcode version offers it. Keep the phone unlocked for installation and launch.
+
+[Apple's Developer Mode guide](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) and [wireless device guide](https://help.apple.com/xcode/mac/current/en.lproj/dev3e2f4ee6d.html) cover the device setup.
+
+Then use:
+
+```sh
+./scripts/iphone --list
+./scripts/iphone --watch
+```
+
+This installs and opens the app immediately, then watches `Sources`, `Configuration`, and the shared Xcode project. Saving changes triggers an incremental Debug build, installs it, and restarts the app. Build errors leave the watcher running; fix the error and save again. Changes made during a build trigger another build afterward. Stop with Ctrl-C. For a single build and launch, omit `--watch`.
+
+If multiple phones are paired, use `./scripts/iphone "Your iPhone name" --watch` or pass its UDID. Signing normally comes from the Xcode project; you can override it with `--team YOUR_TEAM_ID` or `MAPS_DEVELOPMENT_TEAM`. Build logs are in `DerivedData/iPhone/build.log`. The script needs Xcode and Python 3 (also used by `scripts/open`).
+
+This is automatic rebuild/relaunch, so temporary UI state resets each time. It is not in-process Swift hot reload. [InjectionIII](https://github.com/johnno1962/InjectionIII) offers optional hot reload with additional setup and limitations, including changes to stored properties requiring a restart. It is not integrated into this app.
+
+### Search bridge on the phone
+
+Start the bridge in a separate terminal before testing search. Your Mac and phone need to be on the same network.
 
 The bridge listens only on loopback by default. LAN access requires a token:
 

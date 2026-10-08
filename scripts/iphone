@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+
+ROOT = Path(__file__).resolve().parent.parent
+BUILD = ROOT / "DerivedData/iPhone"
+
+
+def iphones():
+    with tempfile.TemporaryDirectory() as directory:
+        output = Path(directory) / "devices.json"
+        subprocess.run(
+            ["xcrun", "devicectl", "list", "devices", "--json-output", str(output)],
+            check=True, stdout=subprocess.DEVNULL,
+        )
+        devices = json.loads(output.read_text())["result"]["devices"]
+    phones = []
+    for device in devices:
+        properties = device.get("properties", {})
+        hardware = properties.get("hardware", device.get("hardwareProperties", {}))
+        state = properties.get("state", device.get("deviceProperties", {}))
+        if hardware.get("reality") == "physical" and hardware.get("deviceType") == "iPhone":
+            phones.append((state.get("name", "iPhone"), device["identifier"], hardware["udid"]))
+    return phones
+
+
+def snapshot():
+    digest = hashlib.sha256()
+    files = []
+    for directory in ("Sources", "Configuration", "PrivateMaps.xcodeproj"):
+        files.extend(path for path in (ROOT / directory).rglob("*")
+                     if path.is_file() and "xcuserdata" not in path.parts and path.name != ".DS_Store")
+    for path in sorted(files):
+        try:
+            digest.update(str(path.relative_to(ROOT)).encode())
+            digest.update(path.read_bytes())
+        except FileNotFoundError:
+            pass
+    return digest.digest()
+
+
+def deploy(phone, team):
+    name, identifier, udid = phone
+    print(f"Building for {name}…", flush=True)
+    BUILD.mkdir(parents=True, exist_ok=True)
+    command = [
+        "xcodebuild", "-quiet", "-project", "PrivateMaps.xcodeproj", "-scheme", "PrivateMaps",
+        "-configuration", "Debug", "-sdk", "iphoneos", "-destination", f"platform=iOS,id={udid}",
+        "-derivedDataPath", str(BUILD), "-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration",
+    ]
+    if team:
+        command.append(f"DEVELOPMENT_TEAM={team}")
+    command.append("build")
+    log = BUILD / "build.log"
+    with log.open("w") as output:
+        result = subprocess.run(command, cwd=ROOT, stdout=output, stderr=subprocess.STDOUT)
+    if result.returncode:
+        print(log.read_text(), file=sys.stderr)
+        raise RuntimeError(f"Build failed. Check signing in Xcode. Log: {log}")
+    app = BUILD / "Build/Products/Debug-iphoneos/PrivateMaps.app"
+    subprocess.run(["xcrun", "devicectl", "device", "install", "app", "--device", identifier, str(app)], check=True)
+    subprocess.run([
+        "xcrun", "devicectl", "device", "process", "launch", "--device", identifier,
+        "--terminate-existing", "com.stefan.private-maps",
+    ], check=True)
+    print("Private Maps is running on your iPhone.", flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build, install, and launch Private Maps on a paired iPhone.")
+    parser.add_argument("device", nargs="?", help="iPhone name, identifier, or UDID; optional if only one is paired")
+    parser.add_argument("--list", action="store_true", help="list paired physical iPhones")
+    parser.add_argument("--watch", action="store_true", help="rebuild and relaunch after saving app changes")
+    parser.add_argument("--team", default=os.environ.get("MAPS_DEVELOPMENT_TEAM"), help="Apple team ID; defaults to Xcode project signing")
+    args = parser.parse_args()
+    phones = iphones()
+    if args.list:
+        for name, identifier, udid in phones:
+            print(f"{name}\t{identifier}\t{udid}")
+        if not phones:
+            print("No paired physical iPhones. Connect by USB, trust this Mac, and enable Developer Mode.")
+        return
+    matches = [phone for phone in phones if args.device in phone] if args.device else phones
+    if len(matches) != 1:
+        raise RuntimeError("Connect and pair your iPhone in Xcode, then use ./scripts/iphone --list. "
+                           "If multiple phones are paired, pass the name or UDID.")
+    previous = snapshot()
+    try:
+        deploy(matches[0], args.team)
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        if not args.watch:
+            raise
+        print(str(error), file=sys.stderr)
+    if not args.watch:
+        return
+    print("Watching app source and configuration. Saves rebuild and restart the app; Ctrl-C stops watching.", flush=True)
+    while True:
+        time.sleep(0.75)
+        current = snapshot()
+        if current == previous:
+            continue
+        time.sleep(0.75)
+        if snapshot() != current:
+            continue
+        previous = current
+        try:
+            deploy(matches[0], args.team)
+        except (RuntimeError, subprocess.CalledProcessError) as error:
+            print(f"{error}\nStill watching; save a change to retry.", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopped.")
+    except (RuntimeError, subprocess.CalledProcessError, OSError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
