@@ -48,7 +48,7 @@ struct PlacesClient: Sendable {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch let error as URLError where error.code != .cancelled {
-            throw BridgeError.message("Cannot reach your search bridge. Start Bridge/run.sh on your Mac and check Search Connection. On iPhone, use your Mac’s local address and allow local network access.")
+            throw BridgeError.message("Cannot reach the search bridge. Start Bridge/run.sh and check Search Connection.")
         }
         guard let http = response as? HTTPURLResponse else { throw BridgeError.message("Invalid bridge response.") }
         guard (200..<300).contains(http.statusCode) else {

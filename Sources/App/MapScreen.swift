@@ -152,7 +152,6 @@ private struct SearchPanel: View {
         VStack(spacing: 0) {
             if let place = model.selectedPlace {
                 HStack {
-                    Text("Place details").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                     Spacer()
                     Button {
                         model.closePlace()
@@ -185,7 +184,7 @@ private struct SearchPanel: View {
                             #endif
                         }
                         if model.searching {
-                            HStack(spacing: 12) { ProgressView(); Text("Searching for \(model.submittedQuery)…") }
+                            HStack(spacing: 12) { ProgressView(); Text("Searching…") }
                                 .font(.subheadline).padding(.vertical, 16)
                         } else if let error = model.searchError {
                             ContentUnavailableView {
@@ -212,12 +211,6 @@ private struct SearchPanel: View {
                                 }
                                 Text("Place information from Google Maps").font(.caption).foregroundStyle(.secondary)
                             }
-                        } else {
-                            Text("Explore your surroundings").font(.title2.bold())
-                            Text("Find a favorite spot or somewhere new. Search near the area you’re looking at.")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                            Label("Your map. Your way.", systemImage: "map.fill")
-                                .font(.footnote.weight(.medium)).foregroundStyle(.blue).padding(.top, 10)
                         }
                     }
                     .padding(20)
@@ -252,7 +245,7 @@ private struct SearchPanel: View {
                     }
                 }
                 .padding(13)
-                .background(.quaternary.opacity(0.7), in: RoundedRectangle(cornerRadius: 14))
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 14))
                 Button { settingsPresented = true } label: {
                     Image(systemName: "slider.horizontal.3").font(.title3).frame(width: 34, height: 44)
                 }
@@ -278,7 +271,7 @@ private struct SearchPanel: View {
             Label(title, systemImage: symbol)
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(.background.opacity(0.7), in: Capsule())
+                .background(.quaternary, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -297,13 +290,12 @@ private struct PlaceRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: place.symbol)
                 .foregroundStyle(.orange).frame(width: 36, height: 36)
-                .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 5) {
                 Text(place.title).font(.headline).foregroundStyle(.primary)
                 Text([place.category, place.price].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    RatingLabel(place: place)
+                    if place.rating != nil { RatingLabel(place: place) }
                     if let status = place.openLabel {
                         Text(status).font(.caption)
                             .foregroundStyle(place.currentOpeningHours?.openNow == true ? .green : .secondary)
@@ -323,15 +315,13 @@ private struct PlaceRow: View {
 struct RatingLabel: View {
     let place: Place
     var body: some View {
-        HStack(spacing: 4) {
-            if let rating = place.rating {
+        if let rating = place.rating {
+            HStack(spacing: 4) {
                 Image(systemName: "star.fill").foregroundStyle(.orange)
                 Text(String(format: "%.1f", rating)).fontWeight(.semibold)
                 if let count = place.userRatingCount { Text("(\(count.formatted()))").foregroundStyle(.secondary) }
-            } else {
-                Text("No ratings yet").foregroundStyle(.secondary)
             }
+            .font(.caption)
         }
-        .font(.caption)
     }
 }

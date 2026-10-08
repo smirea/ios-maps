@@ -42,7 +42,6 @@ final class MapsFlowTests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         app.buttons["Clear search"].tap()
         XCTAssertEqual(search.value as? String, "Search places")
-        XCTAssertTrue(app.staticTexts["Explore your surroundings"].exists)
         capture("Cleared search", app: app)
         XCTAssertTrue(app.otherElements.matching(NSPredicate(format: "identifier == 'VKPointFeature' AND label == %@", pinLabel)).firstMatch.waitForNonExistence(timeout: 5))
         app.buttons["Search Connection"].tap()

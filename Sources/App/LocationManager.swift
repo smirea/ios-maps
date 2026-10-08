@@ -40,7 +40,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
         case .denied, .restricted:
             manager.stopUpdatingLocation()
             coordinate = nil
-            message = "Location is off. You can still search the map, or enable location in Settings."
+            message = "Location is off. Enable it in Settings."
         default:
             break
         }
@@ -66,7 +66,7 @@ final class LocationManager: NSObject, CLLocationManagerDelegate {
             if code == .denied {
                 self.updateAuthorization()
             } else if code != .locationUnknown {
-                self.message = "Your location is unavailable. Search still works in the visible map area."
+                self.message = "Location unavailable."
             }
         }
     }

@@ -14,7 +14,7 @@ struct PlaceDetails: View {
                 Text([place.category, place.price].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline).foregroundStyle(.secondary)
                 HStack(spacing: 12) {
-                    RatingLabel(place: place)
+                    if place.rating != nil { RatingLabel(place: place) }
                     if let status = place.openLabel {
                         Text(status).font(.subheadline.weight(.medium))
                             .foregroundStyle(place.currentOpeningHours?.openNow == true ? .green : .secondary)
@@ -24,9 +24,8 @@ struct PlaceDetails: View {
             .padding(.horizontal, 20)
 
             HStack(spacing: 10) {
-                if place.coordinate != nil {
+                if let coordinate = place.coordinate {
                     Button {
-                        guard let coordinate = place.coordinate else { return }
                         let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
                         item.name = place.title
                         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
@@ -47,8 +46,7 @@ struct PlaceDetails: View {
             .padding(.horizontal, 20)
 
             if loading {
-                HStack { ProgressView(); Text("Loading photos and details…").font(.subheadline).foregroundStyle(.secondary) }
-                    .padding(.horizontal, 20).padding(.vertical, 20)
+                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20)
             } else if let error {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(error).font(.footnote).foregroundStyle(.secondary)
@@ -57,9 +55,6 @@ struct PlaceDetails: View {
                 .padding(.horizontal, 20)
             } else if let photos = place.photos, !photos.isEmpty {
                 PhotoCarousel(photos: photos)
-            } else {
-                Label("No photos available for this place", systemImage: "photo")
-                    .font(.subheadline).foregroundStyle(.secondary).padding(20)
             }
 
             VStack(alignment: .leading, spacing: 18) {
@@ -165,15 +160,17 @@ private struct PlacePhoto: View {
                 }
             }
             .overlay(alignment: .bottomLeading) {
-                if let authors = photo.authorAttributions, !authors.isEmpty {
+                let credits = photo.authorAttributions?.compactMap { author -> (name: String, url: URL?)? in
+                    guard let name = author.displayName else { return nil }
+                    return (name, author.url)
+                } ?? []
+                if !credits.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
-                        ForEach(Array(authors.enumerated()), id: \.offset) { _, author in
-                            if let name = author.displayName {
-                                if let url = author.url {
-                                    Link("Photo: \(name)", destination: url)
-                                } else {
-                                    Text("Photo: \(name)")
-                                }
+                        ForEach(Array(credits.enumerated()), id: \.offset) { _, credit in
+                            if let url = credit.url {
+                                Link("Photo: \(credit.name)", destination: url)
+                            } else {
+                                Text("Photo: \(credit.name)")
                             }
                         }
                     }
