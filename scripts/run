@@ -191,7 +191,7 @@ async function deploy(target: Target, project: string) {
         await command(["xcrun", "devicectl", "device", "install", "app", "--device", target.id, app]);
         await command(["xcrun", "devicectl", "device", "process", "launch", "--device", target.id, "--terminate-existing", bundle]);
     } else {
-        await command(["osascript", "-e", `if application id ${JSON.stringify(bundle)} is running then tell application id ${JSON.stringify(bundle)} to quit`]);
+        await command(["osascript", "-e", `if application ${JSON.stringify(app)} is running then tell application ${JSON.stringify(app)} to quit`]);
         await command(["open", "-n", app]);
     }
     console.log(`App is running on ${target.name}.`);
