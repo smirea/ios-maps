@@ -26,7 +26,7 @@ struct BridgeSettings: View {
                 }
                 Section {
                     Text("Run Bridge/run.sh on your Mac. Simulator and Mac use 127.0.0.1. On iPhone, enter your Mac’s local IP address or .local hostname, with port 8787.")
-                    Text("Search uses the visible map area. Your Google API key stays in your scripts environment on the Mac. The access token is saved in Keychain.")
+                    Text("The Google API key stays in the scripts environment. The access token is saved in Keychain.")
                 }
                 .font(.footnote).foregroundStyle(.secondary)
                 Section {

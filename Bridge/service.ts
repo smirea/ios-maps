@@ -85,13 +85,14 @@ if (import.meta.main) {
     try {
         const args = process.argv.slice(2);
         const options: Record<string, string> = {};
+        const flags = new Set(['--host', '--port', '--script']);
         for (let index = 0; index < args.length; index += 2) {
             const key = args[index];
             const value = args[index + 1];
-            if (!['--host', '--port', '--script'].includes(key ?? '') || !value || value.startsWith('--')) {
+            if (!key || !flags.has(key) || !value || value.startsWith('--')) {
                 throw new Error('Usage: Bridge/run.sh [--host 127.0.0.1] [--port 8787] [--script /path/to/google-maps.ts]');
             }
-            options[key!] = value;
+            options[key] = value;
         }
         const hostname = options['--host'] ?? '127.0.0.1';
         const port = Number(options['--port'] ?? 8787);
