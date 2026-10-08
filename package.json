@@ -2,7 +2,7 @@
   "name": "ios-maps",
   "private": true,
   "scripts": {
-    "start": "bun server/index.ts",
+    "start": "bun --no-env-file server/index.ts",
     "run:ios": "app-ios/run"
   }
 }

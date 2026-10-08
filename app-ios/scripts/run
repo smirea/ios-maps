@@ -154,7 +154,7 @@ async function bridge(target: Target, url: string) {
         }
         const log = join(appRoot, "DerivedData/bridge.log");
         const fd = openSync(log, "w", 0o600);
-        const child = spawn(process.execPath, [join(repoRoot, "server/index.ts"), "--host", listenHost, "--port", port], {
+        const child = spawn(process.execPath, ["--no-env-file", join(repoRoot, "server/index.ts"), "--host", listenHost, "--port", port], {
             cwd: repoRoot, detached: true, stdio: ["ignore", fd, fd],
         });
         child.on("error", error => console.error(error.message));

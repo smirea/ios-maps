@@ -82,16 +82,20 @@ function number(url: URL, name: string, minimum: number, maximum: number): numbe
     return value;
 }
 
-async function relaunchWithScriptsEnv(): Promise<number> {
-    const scriptsDir = process.env.GOOGLE_MAPS_SCRIPTS_DIR ?? `${process.env.HOME}/code/scripts`;
-    const args = [process.execPath, '--no-env-file'];
-    for (const name of ['.env', '.env.local']) {
+function scriptsDirectory(): string {
+    return process.env.GOOGLE_MAPS_SCRIPTS_DIR ?? `${process.env.HOME}/code/scripts`;
+}
+
+export function scriptsEnvFiles(scriptsDir = scriptsDirectory()): string[] {
+    return ['.env', '.env.local'].flatMap(name => {
         const file = `${scriptsDir}/${name}`;
-        if (existsSync(file)) args.push('--env-file', file);
-    }
-    if (args.length === 2) {
-        throw new Error(`Cannot load the Google Maps script environment from ${scriptsDir}. Set GOOGLE_MAPS_SCRIPTS_DIR or export the scripts environment.`);
-    }
+        return existsSync(file) ? [file] : [];
+    });
+}
+
+async function relaunchWithScriptsEnv(files: string[]): Promise<number> {
+    const args = [process.execPath, '--no-env-file'];
+    for (const file of files) args.push('--env-file', file);
     args.push(import.meta.path, ...process.argv.slice(2));
     const child = Bun.spawn(args, {
         stdin: 'inherit',
@@ -104,8 +108,12 @@ async function relaunchWithScriptsEnv(): Promise<number> {
 
 if (import.meta.main) {
     try {
-        if (!process.env.GOOGLE_MAPS_API_KEY && process.env.MAPS_SERVER_ENV_LOADED !== '1') {
-            process.exit(await relaunchWithScriptsEnv());
+        if (process.env.MAPS_SERVER_ENV_LOADED !== '1') {
+            const files = scriptsEnvFiles();
+            if (files.length > 0) process.exit(await relaunchWithScriptsEnv(files));
+            if (!process.env.GOOGLE_MAPS_API_KEY) {
+                throw new Error(`Cannot load the Google Maps script environment from ${scriptsDirectory()}. Set GOOGLE_MAPS_SCRIPTS_DIR or export the scripts environment.`);
+            }
         }
         const args = process.argv.slice(2);
         const options: Record<string, string> = {};
@@ -125,7 +133,7 @@ if (import.meta.main) {
         if (!['127.0.0.1', '::1', 'localhost'].includes(hostname) && token.length < 24) {
             throw new Error('For LAN access, set MAPS_BRIDGE_TOKEN to a random token of at least 24 characters.');
         }
-        const script = options['--script'] ?? `${process.env.GOOGLE_MAPS_SCRIPTS_DIR ?? `${process.env.HOME}/code/scripts`}/src/google-maps.ts`;
+        const script = options['--script'] ?? `${scriptsDirectory()}/src/google-maps.ts`;
         let google: GoogleMaps;
         try {
             google = await import(pathToFileURL(script).href);
