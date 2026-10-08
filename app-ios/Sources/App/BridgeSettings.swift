@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct BridgeSettings: View {
-    @AppStorage("bridgeURL") private var savedURL = PlacesClient.defaultURL
+    @AppStorage(BridgeEndpoint.defaultsKey) private var savedURL = PlacesClient.defaultURL
     @State private var url = ""
     @State private var token = ""
     @State private var status: String?
@@ -12,7 +12,7 @@ struct BridgeSettings: View {
         NavigationStack {
             Form {
                 Section("Search bridge") {
-                    TextField("http://127.0.0.1:8787", text: $url)
+                    TextField("Server URL", text: $url)
                         #if os(iOS)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
@@ -25,7 +25,7 @@ struct BridgeSettings: View {
                         #endif
                 }
                 Section {
-                    Text("Run Bridge/run.sh on your Mac. Simulator and Mac use 127.0.0.1. On iPhone, enter your Mac’s local IP address or .local hostname, with port 8787.")
+                    Text("Development uses MAPS_SERVER_URL, or MAPS_SERVER_HOST and MAPS_SERVER_PORT, to select the Bun server. Start it with npm start. Simulator and Mac can use 127.0.0.1. On iPhone, enter your Mac’s local IP address or .local hostname.")
                     Text("The Google API key stays in the scripts environment. The access token is saved in Keychain.")
                 }
                 .font(.footnote).foregroundStyle(.secondary)
@@ -69,6 +69,6 @@ struct BridgeSettings: View {
             }
         }
         .frame(minWidth: 340, minHeight: 400)
-        .onAppear { url = savedURL; token = BridgeCredential.read() }
+        .onAppear { url = BridgeEndpoint.resolvedURL(); token = BridgeCredential.read() }
     }
 }

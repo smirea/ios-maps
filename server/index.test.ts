@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { createHandler } from './service';
+import { createHandler, scriptsEnvFiles } from './index';
 
 const token = 'a-private-test-token-that-is-long-enough';
 const place = { id: 'ChIJ_test', displayName: { text: 'A coffee shop' }, location: { latitude: 40.7, longitude: -74 } };
@@ -55,6 +58,19 @@ describe('private script bridge', () => {
         expect(photo.headers.get('Location')).toBeNull();
         expect(await photo.text()).toBe('image bytes');
         expect(calls).toEqual([['places/ChIJ_test', { photos: true }], ['places/ChIJ_test/photos/abc', 900]]);
+    });
+
+    test('loads .env and .env.local from the scripts directory when either exists', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'maps-env-'));
+        try {
+            expect(scriptsEnvFiles(dir)).toEqual([]);
+            writeFileSync(join(dir, '.env.local'), 'GOOGLE_MAPS_API_KEY=local\n');
+            expect(scriptsEnvFiles(dir)).toEqual([join(dir, '.env.local')]);
+            writeFileSync(join(dir, '.env'), 'GOOGLE_MAPS_API_KEY=base\n');
+            expect(scriptsEnvFiles(dir)).toEqual([join(dir, '.env'), join(dir, '.env.local')]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     test('keeps upstream error bodies and secrets out of client responses', async () => {

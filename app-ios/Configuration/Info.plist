@@ -12,6 +12,7 @@
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>MapsServerURL</key><string>$(MAPS_SERVER_URL)</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Private Maps uses your location to show your GPS dot and help you find nearby places.</string>
     <key>NSLocationUsageDescription</key>

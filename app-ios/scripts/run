@@ -2,10 +2,12 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync } from "node:fs";
+import { networkInterfaces } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-const root = resolve(import.meta.dir, "..");
+const appRoot = resolve(import.meta.dir, "..");
+const repoRoot = resolve(appRoot, "..");
 const children = new Set<Bun.Subprocess>();
 const { values } = parseArgs({
     options: {
@@ -27,9 +29,10 @@ type Target = {
     runtime?: string;
 };
 
-async function command(args: string[], capture = false, log?: number) {
+async function command(args: string[], capture = false, log?: number, env?: Record<string, string>) {
     const child = Bun.spawn(args, {
-        cwd: root,
+        cwd: appRoot,
+        env: env ? Object.fromEntries(Object.entries({ ...process.env, ...env }).filter((entry): entry is [string, string] => typeof entry[1] === "string")) : undefined,
         stdin: "ignore",
         stdout: log ?? (capture ? "pipe" : "inherit"),
         stderr: log ?? (capture ? "pipe" : "inherit"),
@@ -90,37 +93,69 @@ function selectTarget(all: Target[]): Target {
     if (!requested) return ranked[0];
     const matches = ranked.filter(target => requested === "simulator" ? target.kind === "simulator"
         : target.id.toLowerCase() === requested.toLowerCase() || target.name.toLowerCase() === requested.toLowerCase());
-    if (!matches.length) throw new Error(`No matching target: ${requested}. Use ./scripts/run --targets.`);
+    if (!matches.length) throw new Error(`No matching target: ${requested}. Use app-ios/run --targets.`);
     if (matches.length > 1 && requested !== "simulator" && matches.some(target => target.kind === "device")) {
-        throw new Error(`Multiple targets named ${requested}. Use an identifier from ./scripts/run --targets.`);
+        throw new Error(`Multiple targets named ${requested}. Use an identifier from app-ios/run --targets.`);
     }
     return matches[0];
 }
 
-async function bridge(target: Target) {
+function bridgeURL(target: Target) {
+    const explicit = process.env.MAPS_SERVER_URL?.trim();
+    if (explicit) return explicit.replace(/\/$/, "");
+    const port = process.env.MAPS_SERVER_PORT?.trim() || "8787";
+    const host = process.env.MAPS_SERVER_HOST?.trim()
+        || (target.kind === "device" ? lanHost() : null)
+        || "127.0.0.1";
+    return `http://${host}:${port}`;
+}
+
+function lanHost() {
+    for (const entries of Object.values(networkInterfaces())) {
+        for (const entry of entries ?? []) {
+            if (entry.family === "IPv4" && !entry.internal) return entry.address;
+        }
+    }
+    return null;
+}
+
+function launchEnvironment(prefix: string, url: string) {
+    const endpoint = new URL(url);
+    return {
+        [`${prefix}MAPS_SERVER_URL`]: url,
+        [`${prefix}MAPS_SERVER_HOST`]: endpoint.hostname,
+        [`${prefix}MAPS_SERVER_PORT`]: endpoint.port || "8787",
+    };
+}
+
+async function bridge(target: Target, url: string) {
+    const endpoint = new URL(url);
+    const port = endpoint.port || "8787";
     const token = process.env.MAPS_BRIDGE_TOKEN;
+    const healthURL = `http://127.0.0.1:${port}/health`;
     const health = async () => {
         let response: Response;
         try {
-            response = await fetch("http://127.0.0.1:8787/health", {
+            response = await fetch(healthURL, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(2000),
             });
         } catch { return false; }
         if (!response.ok || (await response.json()).provider !== "google-maps-script") {
-            throw new Error("Port 8787 is occupied by an inaccessible bridge or another service. Check MAPS_BRIDGE_TOKEN.");
+            throw new Error(`Port ${port} is occupied by an inaccessible bridge or another service. Check MAPS_BRIDGE_TOKEN.`);
         }
         return true;
     };
     if (await health()) {
-        console.log("Using the running search bridge.");
+        console.log(`Using the running search bridge at ${url}.`);
     } else {
-        if (target.kind === "device" && (!token || token.length < 24)) {
-            throw new Error("Phone search requires MAPS_BRIDGE_TOKEN (at least 24 characters). Export it, then run again. See README.md.");
+        const listenHost = target.kind === "device" || !["127.0.0.1", "localhost", "::1"].includes(endpoint.hostname) ? "0.0.0.0" : "127.0.0.1";
+        if (listenHost !== "127.0.0.1" && (!token || token.length < 24)) {
+            throw new Error("LAN search requires MAPS_BRIDGE_TOKEN (at least 24 characters). Export it, then run again. See app-ios/README.md.");
         }
-        const log = join(root, "DerivedData/bridge.log");
+        const log = join(appRoot, "DerivedData/bridge.log");
         const fd = openSync(log, "w", 0o600);
-        const child = spawn(join(root, "Bridge/run.sh"), target.kind === "device" ? ["--host", "0.0.0.0"] : [], {
-            cwd: root, detached: true, stdio: ["ignore", fd, fd],
+        const child = spawn(process.execPath, ["--no-env-file", join(repoRoot, "server/index.ts"), "--host", listenHost, "--port", port], {
+            cwd: repoRoot, detached: true, stdio: ["ignore", fd, fd],
         });
         child.on("error", error => console.error(error.message));
         closeSync(fd);
@@ -132,20 +167,20 @@ async function bridge(target: Target) {
             if (child.exitCode !== null) break;
         }
         if (!ready) throw new Error(`Could not start the search bridge. See ${log}.`);
-        console.log("Started the search bridge (it stays running after exit).");
+        console.log(`Started the search bridge at ${url} (it stays running after exit).`);
     }
     if (target.kind === "device") {
-        console.log("For phone search, the bridge must listen on your LAN. Set Search Connection to your Mac’s address and bridge token; see README.md.");
+        console.log(`For phone search, set Search Connection to ${url} and the bridge token. See app-ios/README.md.`);
     }
 }
 
 function snapshot(project: string) {
     const hash = createHash("sha256");
     for (const directory of ["Sources", "Configuration", project]) {
-        for (const file of readdirSync(join(root, directory), { recursive: true }).map(String).sort()) {
+        for (const file of readdirSync(join(appRoot, directory), { recursive: true }).map(String).sort()) {
             if (file.split("/").includes("xcuserdata") || basename(file) === ".DS_Store") continue;
             try {
-                const data = readFileSync(join(root, directory, file));
+                const data = readFileSync(join(appRoot, directory, file));
                 hash.update(join(directory, file)).update("\0").update(data).update("\0");
             } catch (error: any) {
                 if (!["EISDIR", "ENOENT"].includes(error.code)) throw error;
@@ -155,9 +190,9 @@ function snapshot(project: string) {
     return hash.digest("hex");
 }
 
-async function deploy(target: Target, project: string) {
+async function deploy(target: Target, project: string, serverURL: string) {
     console.log(`Building for ${target.name}${target.runtime ? ` (${target.runtime})` : ""}…`);
-    const build = join(root, "DerivedData", target.kind);
+    const build = join(appRoot, "DerivedData", target.kind);
     mkdirSync(build, { recursive: true });
     const log = join(build, "build.log");
     const fd = openSync(log, "w");
@@ -166,7 +201,8 @@ async function deploy(target: Target, project: string) {
             "xcodebuild", "-quiet", "-project", project, "-scheme", basename(project, ".xcodeproj"),
             "-configuration", "Debug", "-destination", target.destination, "-derivedDataPath", build,
             ...(target.kind === "device" ? ["-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration"] : ["CODE_SIGNING_ALLOWED=NO"]),
-            ...(values.team ? [`DEVELOPMENT_TEAM=${values.team}`] : []), "build",
+            ...(values.team ? [`DEVELOPMENT_TEAM=${values.team}`] : []),
+            `MAPS_SERVER_URL=${serverURL}`, "build",
         ], false, fd);
     } catch {
         console.error(readFileSync(log, "utf8"));
@@ -186,20 +222,21 @@ async function deploy(target: Target, project: string) {
         await command(existsSync(simulator) ? ["open", "-a", simulator, "--args", "-CurrentDeviceUDID", target.id]
             : ["open", "-a", join(dirname(developer), "Applications/DeviceHub.app"), `devices://device/open?id=${target.id}`]);
         await command(["xcrun", "simctl", "install", target.id, app]);
-        await command(["xcrun", "simctl", "launch", "--terminate-running-process", target.id, bundle]);
+        await command(["xcrun", "simctl", "launch", "--terminate-running-process", target.id, bundle], false, undefined, launchEnvironment("SIMCTL_CHILD_", serverURL));
     } else if (target.kind === "device") {
         await command(["xcrun", "devicectl", "device", "install", "app", "--device", target.id, app]);
-        await command(["xcrun", "devicectl", "device", "process", "launch", "--device", target.id, "--terminate-existing", bundle]);
+        await command(["xcrun", "devicectl", "device", "process", "launch", "--device", target.id, "--terminate-existing", bundle], false, undefined, launchEnvironment("DEVICECTL_CHILD_", serverURL));
     } else {
+        const endpoint = new URL(serverURL);
         await command(["osascript", "-e", `if application ${JSON.stringify(app)} is running then tell application ${JSON.stringify(app)} to quit`]);
-        await command(["open", "-n", app]);
+        await command(["open", "-n", "--env", `MAPS_SERVER_URL=${serverURL}`, "--env", `MAPS_SERVER_HOST=${endpoint.hostname}`, "--env", `MAPS_SERVER_PORT=${endpoint.port || "8787"}`, app]);
     }
     console.log(`App is running on ${target.name}.`);
 }
 
 async function main() {
     if (values.help) {
-        console.log(`Usage: ./scripts/run [-t simulator|mac|<target-name-or-id>] [--targets] [--watch|-w] [--no-watch] [--team TEAM_ID]
+        console.log(`Usage: app-ios/run [-t simulator|mac|<target-name-or-id>] [--targets] [--watch|-w] [--no-watch] [--team TEAM_ID]
 
 Defaults to a connected iOS device, then a booted simulator, then an available simulator, then My Mac.
 SWIFT_RUN_DEFAULT_TARGET overrides this choice when -t/--target is omitted. --targets marks the effective default with *.
@@ -213,15 +250,16 @@ Watching is enabled by default. Saves rebuild and restart the app. Ctrl-C stops 
         return;
     }
     console.log(`Selected ${target.name} (${target.kind}${target.runtime ? `, ${target.runtime}` : ""}).`);
-    const projects = readdirSync(root).filter(file => file.endsWith(".xcodeproj"));
-    if (projects.length !== 1) throw new Error("Expected one Xcode project in the repository root.");
+    const projects = readdirSync(appRoot).filter(file => file.endsWith(".xcodeproj"));
+    if (projects.length !== 1) throw new Error("Expected one Xcode project in app-ios.");
     const project = projects[0];
-    mkdirSync(join(root, "DerivedData"), { recursive: true });
-    await bridge(target);
+    const serverURL = bridgeURL(target);
+    mkdirSync(join(appRoot, "DerivedData"), { recursive: true });
+    await bridge(target, serverURL);
     const watch = values.watch && !values["no-watch"];
     let previous = snapshot(project);
     const launch = async () => {
-        try { await deploy(target, project); }
+        try { await deploy(target, project, serverURL); }
         catch (error: any) {
             if (!watch) throw error;
             console.error(`${error.message}\nStill watching; save a change to retry.`);

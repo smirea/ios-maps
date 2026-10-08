@@ -2,6 +2,10 @@ import SwiftUI
 
 @main
 struct PrivateMapsApp: App {
+    init() {
+        BridgeEndpoint.applyDevelopmentSelection()
+    }
+
     var body: some Scene {
         WindowGroup {
             MapScreen()

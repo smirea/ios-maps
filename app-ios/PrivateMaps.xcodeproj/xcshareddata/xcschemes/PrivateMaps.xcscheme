@@ -18,6 +18,11 @@
     <BuildableProductRunnable runnableDebuggingMode="0">
       <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000005" BuildableName="PrivateMaps.app" BlueprintName="PrivateMaps" ReferencedContainer="container:PrivateMaps.xcodeproj"/>
     </BuildableProductRunnable>
+    <EnvironmentVariables>
+      <EnvironmentVariable key="MAPS_SERVER_HOST" value="$(MAPS_SERVER_HOST)" isEnabled="YES"/>
+      <EnvironmentVariable key="MAPS_SERVER_PORT" value="$(MAPS_SERVER_PORT)" isEnabled="YES"/>
+      <EnvironmentVariable key="MAPS_SERVER_URL" value="$(MAPS_SERVER_URL)" isEnabled="YES"/>
+    </EnvironmentVariables>
   </LaunchAction>
   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
     <BuildableProductRunnable runnableDebuggingMode="0">
