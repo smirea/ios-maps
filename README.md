@@ -4,19 +4,28 @@ A personal SwiftUI map app for iOS 17+ and macOS 14+. Apple MapKit supplies the 
 
 The bottom search sheet supports free-text search and nearby categories. Search uses the visible map area, including after panning. Results appear as rating pins; names spread out as you zoom to keep the map readable. Tap a pin or result to open a draggable place sheet with a photo carousel, photo author links, opening hours, address, website, phone, and directions. Directions open Apple Maps.
 
-## Run on Mac or simulator
+## Run
 
-For one-command simulator testing:
+The Bun TypeScript launcher handles physical iPhones/iPads, iOS simulators, and Mac:
 
 ```sh
-./scripts/open
+./scripts/run                       # automatically select a target; watch by default
+./scripts/run --targets             # list names, identifiers, runtimes, and states
+./scripts/run -t simulator          # prefer a booted simulator, otherwise the newest runtime
+./scripts/run -t "iPhone 17 Pro"     # select a named target (or pass its identifier)
+./scripts/run -t mac                # run on this Mac
+./scripts/run --no-watch            # build and launch once
 ```
 
-This starts or reuses the local search bridge, builds the app, and opens it on a booted iPhone simulator (or an available iPhone if none is booted). It supports Simulator and Xcode 27's Device Hub. To choose a device, use `./scripts/open "iPhone 17 Pro"` or pass its UDID. Build and bridge logs are in `DerivedData`; the bridge keeps running after the script finishes.
+With no `-t`/`--target`, the script chooses a connected physical iOS device, then a booted simulator, then an available simulator, then My Mac. If several physical devices are connected, it uses the first listed by Xcode; select a name or identifier to override that choice. Duplicate simulator names prefer a booted instance, then the newest runtime; use an identifier to choose exactly. It supports Simulator and Xcode 27's Device Hub.
 
-For a manual launch or Mac testing:
+The script starts or reuses the search bridge, builds a Debug app, and installs and launches it on the target. Watching is enabled by default (`--watch`/`-w` also enable it). Saving changes in `Sources`, `Configuration`, or the shared Xcode project triggers an incremental build and restarts the app. Build errors leave the watcher running; fix the error and save again. Changes made during a build trigger another build afterward. Stop with Ctrl-C; the search bridge stays running in the background. Build logs are in `DerivedData/device/build.log`, `DerivedData/simulator/build.log`, or `DerivedData/mac/build.log`; the bridge log is `DerivedData/bridge.log`.
 
-Start the bridge from this repository:
+This is automatic rebuild/relaunch, so temporary UI state resets each time. It is not in-process Swift hot reload. [InjectionIII](https://github.com/johnno1962/InjectionIII) offers optional hot reload with additional setup and limitations, including changes to stored properties requiring a restart. It is not integrated into this app.
+
+The launcher needs Xcode and Bun, with no added dependencies. It discovers the root `.xcodeproj`, uses its matching scheme, and reads the built app's bundle identifier. Device signing comes from the project; override it with `--team YOUR_TEAM_ID` or `MAPS_DEVELOPMENT_TEAM`. Complete the phone setup below before using a physical target.
+
+For a manual Xcode launch, start the bridge:
 
 ```sh
 Bridge/run.sh
@@ -39,31 +48,20 @@ You can install development builds directly, without TestFlight. One-time setup:
 
 [Apple's Developer Mode guide](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) and [wireless device guide](https://help.apple.com/xcode/mac/current/en.lproj/dev3e2f4ee6d.html) cover the device setup.
 
-Then use:
-
-```sh
-./scripts/iphone --list
-./scripts/iphone --watch
-```
-
-This installs and opens the app immediately, then watches `Sources`, `Configuration`, and the shared Xcode project. Saving changes triggers an incremental Debug build, installs it, and restarts the app. Build errors leave the watcher running; fix the error and save again. Changes made during a build trigger another build afterward. Stop with Ctrl-C. For a single build and launch, omit `--watch`.
-
-If multiple phones are paired, use `./scripts/iphone "Your iPhone name" --watch` or pass its UDID. Signing normally comes from the Xcode project; you can override it with `--team YOUR_TEAM_ID` or `MAPS_DEVELOPMENT_TEAM`. Build logs are in `DerivedData/iPhone/build.log`. The script needs Xcode and Python 3 (also used by `scripts/open`).
-
-This is automatic rebuild/relaunch, so temporary UI state resets each time. It is not in-process Swift hot reload. [InjectionIII](https://github.com/johnno1962/InjectionIII) offers optional hot reload with additional setup and limitations, including changes to stored properties requiring a restart. It is not integrated into this app.
+Then `./scripts/run` automatically picks up your connected phone and watches for changes.
 
 ### Search bridge on the phone
 
-Start the bridge in a separate terminal before testing search. Your Mac and phone need to be on the same network.
+Your Mac and phone need to be on the same network. When starting a bridge for a physical device, `run` listens on the LAN and requires `MAPS_BRIDGE_TOKEN`. It reuses an existing bridge; if that bridge only listens on loopback, stop it and restart with LAN access before testing search.
 
 The bridge listens only on loopback by default. LAN access requires a token:
 
 ```sh
 export MAPS_BRIDGE_TOKEN="$(openssl rand -hex 24)"
-Bridge/run.sh --host 0.0.0.0
+./scripts/run
 ```
 
-In the app, tap the sliders beside the search field to open **Search Connection**. Set the URL to `http://YOUR-MAC.local:8787` or `http://YOUR-MAC-IP:8787`, enter the token, test the connection, and save. Allow local network access when prompted. The token is saved in Keychain. Keep the token available for subsequent bridge launches; generate a new token and update the app if you want to rotate it. For use outside your LAN, put the bridge behind your private VPN or a private HTTPS endpoint.
+Alternatively, launch the bridge manually with `Bridge/run.sh --host 0.0.0.0` after exporting the token. In the app, tap the sliders beside the search field to open **Search Connection**. Set the URL to `http://YOUR-MAC.local:8787` or `http://YOUR-MAC-IP:8787`, enter the token, test the connection, and save. Allow local network access when prompted. The token is saved in Keychain. Keep the token available for subsequent bridge launches; generate a new token and update the app if you want to rotate it. For use outside your LAN, put the bridge behind your private VPN or a private HTTPS endpoint.
 
 ## Bridge contract
 
