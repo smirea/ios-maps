@@ -17,7 +17,9 @@ The Bun TypeScript launcher handles physical iPhones/iPads, iOS simulators, and 
 ./scripts/run --no-watch            # build and launch once
 ```
 
-With no `-t`/`--target`, the script chooses a connected physical iOS device, then a booted simulator, then an available simulator, then My Mac. If several physical devices are connected, it uses the first listed by Xcode; select a name or identifier to override that choice. Duplicate simulator names prefer a booted instance, then the newest runtime; use an identifier to choose exactly. It supports Simulator and Xcode 27's Device Hub.
+With no `-t`/`--target`, `SWIFT_RUN_DEFAULT_TARGET` overrides the automatic choice and accepts the same names, identifiers, `simulator`, or `mac`. For example, `export SWIFT_RUN_DEFAULT_TARGET=simulator` makes simulator testing the default. An explicit target flag takes precedence. `--targets` marks the effective default with `*`.
+
+Without an override, the script chooses a connected physical iOS device, then a booted simulator, then an available simulator, then My Mac. If several physical devices are connected, it uses the first listed by Xcode; select a name or identifier to override that choice. Duplicate simulator names prefer a booted instance, then the newest runtime; use an identifier to choose exactly. It supports Simulator and Xcode 27's Device Hub.
 
 The script starts or reuses the search bridge, builds a Debug app, and installs and launches it on the target. Watching is enabled by default (`--watch`/`-w` also enable it). Saving changes in `Sources`, `Configuration`, or the shared Xcode project triggers an incremental build and restarts the app. Build errors leave the watcher running; fix the error and save again. Changes made during a build trigger another build afterward. Stop with Ctrl-C; the search bridge stays running in the background. Build logs are in `DerivedData/device/build.log`, `DerivedData/simulator/build.log`, or `DerivedData/mac/build.log`; the bridge log is `DerivedData/bridge.log`.
 

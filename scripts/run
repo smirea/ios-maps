@@ -81,7 +81,7 @@ async function targets(): Promise<Target[]> {
 }
 
 function selectTarget(all: Target[]): Target {
-    const requested = values.target;
+    const requested = values.target ?? (process.env.SWIFT_RUN_DEFAULT_TARGET?.trim() || undefined);
     const ranked = [...all].sort((a, b) => {
         const score = (target: Target) => target.kind === "device" ? (target.state === "connected" ? 0 : 4)
             : target.kind === "simulator" ? (target.state === "booted" ? 1 : 2) : 3;
@@ -202,15 +202,16 @@ async function main() {
         console.log(`Usage: ./scripts/run [-t simulator|mac|<target-name-or-id>] [--targets] [--watch|-w] [--no-watch] [--team TEAM_ID]
 
 Defaults to a connected iOS device, then a booted simulator, then an available simulator, then My Mac.
+SWIFT_RUN_DEFAULT_TARGET overrides this choice when -t/--target is omitted. --targets marks the effective default with *.
 Watching is enabled by default. Saves rebuild and restart the app. Ctrl-C stops watching.`);
         return;
     }
     const all = await targets();
+    const target = selectTarget(all);
     if (values.targets) {
-        console.table(all.map(({ kind, name, state, runtime, id }) => ({ target: name, kind, state, runtime: runtime ?? "", id })));
+        console.table(all.map(({ kind, name, state, runtime, id }) => ({ default: id === target.id ? "*" : "", target: name, kind, state, runtime: runtime ?? "", id })));
         return;
     }
-    const target = selectTarget(all);
     console.log(`Selected ${target.name} (${target.kind}${target.runtime ? `, ${target.runtime}` : ""}).`);
     const projects = readdirSync(root).filter(file => file.endsWith(".xcodeproj"));
     if (projects.length !== 1) throw new Error("Expected one Xcode project in the repository root.");
