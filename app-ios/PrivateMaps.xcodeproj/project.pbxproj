@@ -94,6 +94,9 @@
                 INFOPLIST_FILE = Configuration/Info.plist;
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0;
                 MACOSX_DEPLOYMENT_TARGET = 14.0;
+                MAPS_SERVER_HOST = 127.0.0.1;
+                MAPS_SERVER_PORT = 8787;
+                MAPS_SERVER_URL = "http://$(MAPS_SERVER_HOST):$(MAPS_SERVER_PORT)";
                 MARKETING_VERSION = 1.0;
                 PRODUCT_BUNDLE_IDENTIFIER = com.stefan.private-maps;
                 PRODUCT_NAME = "$(TARGET_NAME)";
@@ -116,6 +119,9 @@
                 INFOPLIST_FILE = Configuration/Info.plist;
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0;
                 MACOSX_DEPLOYMENT_TARGET = 14.0;
+                MAPS_SERVER_HOST = 127.0.0.1;
+                MAPS_SERVER_PORT = 8787;
+                MAPS_SERVER_URL = "http://$(MAPS_SERVER_HOST):$(MAPS_SERVER_PORT)";
                 MARKETING_VERSION = 1.0;
                 PRODUCT_BUNDLE_IDENTIFIER = com.stefan.private-maps;
                 PRODUCT_NAME = "$(TARGET_NAME)";

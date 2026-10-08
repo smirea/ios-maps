@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createHandler } from './service';
+import { createHandler } from './index';
 
 const token = 'a-private-test-token-that-is-long-enough';
 const place = { id: 'ChIJ_test', displayName: { text: 'A coffee shop' }, location: { latitude: 40.7, longitude: -74 } };

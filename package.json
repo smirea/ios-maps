@@ -1,0 +1,8 @@
+{
+  "name": "ios-maps",
+  "private": true,
+  "scripts": {
+    "start": "bun server/index.ts",
+    "run:ios": "app-ios/run"
+  }
+}

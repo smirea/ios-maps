@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { timingSafeEqual } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import type { searchPlaces, placeDetails, placePhoto } from '../../scripts/src/google-maps';
 
@@ -81,8 +82,31 @@ function number(url: URL, name: string, minimum: number, maximum: number): numbe
     return value;
 }
 
+async function relaunchWithScriptsEnv(): Promise<number> {
+    const scriptsDir = process.env.GOOGLE_MAPS_SCRIPTS_DIR ?? `${process.env.HOME}/code/scripts`;
+    const args = [process.execPath, '--no-env-file'];
+    for (const name of ['.env', '.env.local']) {
+        const file = `${scriptsDir}/${name}`;
+        if (existsSync(file)) args.push('--env-file', file);
+    }
+    if (args.length === 2) {
+        throw new Error(`Cannot load the Google Maps script environment from ${scriptsDir}. Set GOOGLE_MAPS_SCRIPTS_DIR or export the scripts environment.`);
+    }
+    args.push(import.meta.path, ...process.argv.slice(2));
+    const child = Bun.spawn(args, {
+        stdin: 'inherit',
+        stdout: 'inherit',
+        stderr: 'inherit',
+        env: { ...process.env, MAPS_SERVER_ENV_LOADED: '1' },
+    });
+    return await child.exited;
+}
+
 if (import.meta.main) {
     try {
+        if (!process.env.GOOGLE_MAPS_API_KEY && process.env.MAPS_SERVER_ENV_LOADED !== '1') {
+            process.exit(await relaunchWithScriptsEnv());
+        }
         const args = process.argv.slice(2);
         const options: Record<string, string> = {};
         const flags = new Set(['--host', '--port', '--script']);
@@ -90,23 +114,23 @@ if (import.meta.main) {
             const key = args[index];
             const value = args[index + 1];
             if (!key || !flags.has(key) || !value || value.startsWith('--')) {
-                throw new Error('Usage: Bridge/run.sh [--host 127.0.0.1] [--port 8787] [--script /path/to/google-maps.ts]');
+                throw new Error('Usage: bun server/index.ts [--host 127.0.0.1] [--port 8787] [--script /path/to/google-maps.ts]');
             }
             options[key] = value;
         }
-        const hostname = options['--host'] ?? '127.0.0.1';
-        const port = Number(options['--port'] ?? 8787);
+        const hostname = options['--host'] ?? process.env.MAPS_SERVER_HOST ?? '127.0.0.1';
+        const port = Number(options['--port'] ?? process.env.MAPS_SERVER_PORT ?? 8787);
         if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Choose a port between 1 and 65535.');
         const token = process.env.MAPS_BRIDGE_TOKEN ?? '';
         if (!['127.0.0.1', '::1', 'localhost'].includes(hostname) && token.length < 24) {
             throw new Error('For LAN access, set MAPS_BRIDGE_TOKEN to a random token of at least 24 characters.');
         }
-        const script = options['--script'] ?? `${process.env.HOME}/code/scripts/src/google-maps.ts`;
+        const script = options['--script'] ?? `${process.env.GOOGLE_MAPS_SCRIPTS_DIR ?? `${process.env.HOME}/code/scripts`}/src/google-maps.ts`;
         let google: GoogleMaps;
         try {
             google = await import(pathToFileURL(script).href);
         } catch {
-            throw new Error('Cannot load the Google Maps script. Use Bridge/run.sh so the scripts environment is loaded.');
+            throw new Error('Cannot load the Google Maps script. Start the server with npm start so the scripts environment is loaded.');
         }
         if (typeof google.searchPlaces !== 'function' || typeof google.placeDetails !== 'function' || typeof google.placePhoto !== 'function') {
             throw new Error('Update ~/code/scripts: the Google Maps script must export searchPlaces, placeDetails, and placePhoto.');

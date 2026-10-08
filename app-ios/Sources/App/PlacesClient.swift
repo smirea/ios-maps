@@ -1,13 +1,60 @@
 import Foundation
 import Security
 
+enum BridgeEndpoint {
+    static let defaultsKey = "bridgeURL"
+
+    static func applyDevelopmentSelection() {
+        guard let selected = environmentURL() else { return }
+        UserDefaults.standard.set(selected, forKey: defaultsKey)
+    }
+
+    static func resolvedURL() -> String {
+        if let saved = sanitized(UserDefaults.standard.string(forKey: defaultsKey)) {
+            return saved
+        }
+        return developmentURL()
+    }
+
+    static func developmentURL() -> String {
+        environmentURL() ?? bundledURL() ?? composed(host: nil, port: nil)
+    }
+
+    private static func environmentURL() -> String? {
+        let environment = ProcessInfo.processInfo.environment
+        if let url = sanitized(environment["MAPS_SERVER_URL"]) { return url }
+        let host = sanitized(environment["MAPS_SERVER_HOST"])
+        let port = sanitized(environment["MAPS_SERVER_PORT"])
+        guard host != nil || port != nil else { return nil }
+        return composed(host: host, port: port)
+    }
+
+    private static func bundledURL() -> String? {
+        guard let value = sanitized(Bundle.main.object(forInfoDictionaryKey: "MapsServerURL") as? String),
+              let url = URL(string: value),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil else { return nil }
+        return url.absoluteString
+    }
+
+    private static func composed(host: String?, port: String?) -> String {
+        "http://\(host ?? "127.0.0.1"):\(port ?? "8787")"
+    }
+
+    private static func sanitized(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty, !trimmed.contains("$(") else { return nil }
+        return trimmed
+    }
+}
+
 struct PlacesClient: Sendable {
-    static let defaultURL = "http://127.0.0.1:8787"
+    static var defaultURL: String { BridgeEndpoint.developmentURL() }
     let baseURL: String
     let token: String
 
     static func configured() -> PlacesClient {
-        .init(baseURL: UserDefaults.standard.string(forKey: "bridgeURL") ?? defaultURL, token: BridgeCredential.read())
+        .init(baseURL: BridgeEndpoint.resolvedURL(), token: BridgeCredential.read())
     }
 
     func search(_ query: String, latitude: Double, longitude: Double, radius: Double) async throws -> [Place] {
@@ -48,7 +95,7 @@ struct PlacesClient: Sendable {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch let error as URLError where error.code != .cancelled {
-            throw BridgeError.message("Cannot reach the search bridge. Start Bridge/run.sh and check Search Connection.")
+            throw BridgeError.message("Cannot reach the search bridge. Start it with npm start and check Search Connection.")
         }
         guard let http = response as? HTTPURLResponse else { throw BridgeError.message("Invalid bridge response.") }
         guard (200..<300).contains(http.statusCode) else {
