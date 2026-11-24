@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    ".svelte-kit",
+    "**/.svelte-kit",
+    "generated",
+    "**/generated",
+    "**/*.generated.ts",
+    "**/*.gen.ts",
+    "DerivedData",
+    "**/DerivedData",
+    "app-ios/DerivedData",
+    ".build",
+    "**/.build",
+    "app-ios/.build",
+    ".swiftpm",
+    "**/.swiftpm",
+    "*.xcresult"
+  ]
+}

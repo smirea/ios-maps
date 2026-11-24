@@ -73,12 +73,12 @@ Alternatively, launch the bridge manually with `npm start -- --host 0.0.0.0` or 
 
 `server/index.ts` is the bridge. `npm start` and `Bridge/run.sh` launch it and load the scripts environment. You can override the scripts directory with `GOOGLE_MAPS_SCRIPTS_DIR`, or pass `--script /path/to/google-maps.ts`, `--host`, and `--port`. `MAPS_SERVER_HOST` and `MAPS_SERVER_PORT` set the same host and port when the flags are omitted.
 
-| GET endpoint | Response |
-| --- | --- |
-| `/health` | `{ "status": "ok", "provider": "google-maps-script" }` |
-| `/search?q=coffee&latitude=40.7&longitude=-74&radius=2500` | `{ "places": [...] }`, up to 20 Google Places objects |
-| `/details?id=PLACE_ID` | A Google Places object with `photos` and `regularOpeningHours` |
-| `/photo?name=places/PLACE_ID/photos/PHOTO_RESOURCE&width=1200` | Image bytes, with an image content type |
+| GET endpoint                                                   | Response                                                       |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `/health`                                                      | `{ "status": "ok", "provider": "google-maps-script" }`         |
+| `/search?q=coffee&latitude=40.7&longitude=-74&radius=2500`     | `{ "places": [...] }`, up to 20 Google Places objects          |
+| `/details?id=PLACE_ID`                                         | A Google Places object with `photos` and `regularOpeningHours` |
+| `/photo?name=places/PLACE_ID/photos/PHOTO_RESOURCE&width=1200` | Image bytes, with an image content type                        |
 
 Requests use `Authorization: Bearer TOKEN` when a token is configured. Errors return `{ "error": "message" }` with an appropriate HTTP status. Photos retain their original `authorAttributions`; the app displays them with the image. The bridge proxies photo bytes so API keys and upstream redirect URLs stay off the device. Requests time out, invalid resource paths are rejected, and upstream error bodies are not exposed.
 
