@@ -2,12 +2,14 @@
 import { timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import type { searchPlaces, placeDetails, placePhoto } from '../../scripts/src/google-maps';
-
+// The script that implements these lives in ~/code/scripts, outside this repo, so CI cannot import its types.
 type GoogleMaps = {
-    searchPlaces: typeof searchPlaces;
-    placeDetails: typeof placeDetails;
-    placePhoto: typeof placePhoto;
+    searchPlaces: (
+        query: string,
+        options: { center: { latitude: number; longitude: number }; distance: number; limit: number },
+    ) => Promise<unknown>;
+    placeDetails: (place: string, options: { photos: boolean }) => Promise<unknown>;
+    placePhoto: (name: string, width: number) => Promise<Response>;
 };
 
 class RequestError extends Error {

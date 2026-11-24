@@ -7,3 +7,17 @@ xcuserdata/
 .env.*
 
 .DS_Store
+
+node_modules
+
+# output
+out
+dist
+build
+.svelte-kit
+*.tgz
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo

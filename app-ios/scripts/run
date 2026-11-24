@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync } from "node:fs";
-import { networkInterfaces } from "node:os";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statfsSync } from "node:fs";
+import { homedir, networkInterfaces } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -190,10 +190,41 @@ function snapshot(project: string) {
     return hash.digest("hex");
 }
 
+const RECLAIM_WATERMARK_GB = 25;
+const MINIMUM_FREE_GB = 10;
+
+function freeDiskGB(path: string) {
+    const { bavail, bsize } = statfsSync(path);
+    return (bavail * bsize) / 2 ** 30;
+}
+
+function ensureDiskRoom(path: string) {
+    let freeGB = freeDiskGB(path);
+    if (freeGB < RECLAIM_WATERMARK_GB) {
+        const binary = join(homedir(), "bin/agent-t3-worktree");
+        if (existsSync(binary)) {
+            console.log(`Only ${freeGB.toFixed(1)} GB free (below ${RECLAIM_WATERMARK_GB} GB); reclaiming idle caches…`);
+            Bun.spawnSync([binary, "reclaim", "--min-free-gb", String(RECLAIM_WATERMARK_GB)], {
+                cwd: appRoot,
+                stdin: "ignore",
+                stdout: "inherit",
+                stderr: "inherit",
+            });
+            freeGB = freeDiskGB(path);
+        }
+    }
+    if (freeGB < MINIMUM_FREE_GB) {
+        throw new Error(
+            `Only ${freeGB.toFixed(1)} GB free; a build needs ${MINIMUM_FREE_GB} GB. Free space (empty the Trash, delete unused simulators, or settle merged worktrees) and rerun.`,
+        );
+    }
+}
+
 async function deploy(target: Target, project: string, serverURL: string) {
     console.log(`Building for ${target.name}${target.runtime ? ` (${target.runtime})` : ""}…`);
     const build = join(appRoot, "DerivedData", target.kind);
     mkdirSync(build, { recursive: true });
+    ensureDiskRoom(build);
     const log = join(build, "build.log");
     const fd = openSync(log, "w");
     try {
