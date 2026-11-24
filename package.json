@@ -1,7 +1,6 @@
 {
   "name": "ios-maps",
   "private": true,
-  "packageManager": "bun@1.4.5",
   "scripts": {
     "postinstall": "[ ! -d .git ] || lefthook install",
     "start": "bun --no-env-file server/index.ts",
@@ -16,5 +15,6 @@
     "lefthook": "^2.2.2",
     "oxlint": "^1.95.0",
     "typescript": "^7.0.2"
-  }
+  },
+  "packageManager": "bun@1.4.5"
 }
